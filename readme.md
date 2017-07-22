@@ -1,6 +1,6 @@
 # What is this?
 
-Morpheus is a **Work in progress** IRC gateway to a [Matrix](matrix.org) server.
+Morpheus is a **Work in progress** IRC gateway to a [Matrix](https://matrix.org) server.
 It translates between the two protocols so that you can view Matrix rooms via
 any IRC client.
 
