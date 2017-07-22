@@ -1,0 +1,24 @@
+* handle message splitting
+* away-notify CAP for presence updates
+* room lookup for /list
+	* /publicRooms endpoint
+	* query every ~10m and cache?
+* power levels
+* presence
+	* probably need list of presence per client to compare against for changes
+	* RPL_AWAY when idle/offline status?
+* NAMES '=' character should depend on invite-only status (or guest_access ??)
+* WHO / WHOIS
+* TLS for IRC socket
+* join to non-existent room should create it
+* part should call /forget?
+* if, after a leave, we are left in an empty room with no power: leave + forget it
+* think how to handle clashing nicknames
+	* use ` as nick suffix to make them always unique
+	* homeserver nicks always have no suffix
+* fix TOPIC with no args
+* znc style history logging
+* use syslog? or custom log scheme?
+* daemon()
+* pagination
+* rate limiting
