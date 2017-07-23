@@ -78,7 +78,7 @@ void client_tick(){
 			if(cmd_diff >= 90){
 				disconnect = true;
 			} else if(!((*c)->irc_state & IRC_STATE_IDLE) && cmd_diff >= 60){
-				send((*c)->irc_sock, "PING :morpheus\r\n", 12, 0);
+				send((*c)->irc_sock, "PING :morpheus\r\n", 16, 0);
 				(*c)->irc_state |= IRC_STATE_IDLE;
 			}
 		} else {

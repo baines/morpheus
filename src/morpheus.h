@@ -59,7 +59,8 @@ struct room*    room_find_query   (struct client*, mtx_id partner);
 
 char*           cvt_m2i_user      (mtx_id id);
 mtx_id          cvt_i2m_user      (const char* irc_id);
-sb(char)        cvt_m2i_msg       (const char* mtx_msg);
+sb(char)        cvt_m2i_msg_plain (const char* mtx_msg);
+sb(char)        cvt_m2i_msg_rich  (const char* mtx_msg);
 sb(char)        cvt_i2m_msg       (const char* irc_msg, sb(char)* stripped);
 
 bool            yajl_generate     (char** out, const char* fmt, ...);
@@ -143,6 +144,7 @@ enum {
 
 // Used in struct member, to show a room member's status w.r.t that room.
 enum {
+	MEMBER_STATE_NONE = 0,
 	MEMBER_STATE_JOINED,
 	MEMBER_STATE_INVITED,
 };

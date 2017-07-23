@@ -103,10 +103,9 @@ void net_update(int emask, struct sock* s){
 		curl_easy_getinfo(cm->easy_handle, CURLINFO_PRIVATE, &ptr);
 		struct client* client = (struct client*)ptr;
 
-		printf("ding fries are done: %d\n", client->irc_sock);
-
 		for(struct net_msg** msg = &client->msgs; *msg; msg = &(*msg)->next){
 			if((*msg)->curl == cm->easy_handle){
+				printf("Recieved mtx msg, type: %d, client: %d\n", (*msg)->type, client->irc_sock);
 				sb_push((*msg)->data, 0);
 				mtx_recv(client, *msg);
 				net_msg_free(*msg);

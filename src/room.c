@@ -60,7 +60,9 @@ struct member* room_member_add(struct room* room, mtx_id member_id, int state){
 		result = &sb_last(room->members);
 	}
 
-	result->state = state;
+	if(state != MEMBER_STATE_NONE){
+		result->state = state;
+	}
 
 	return result;
 }

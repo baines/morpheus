@@ -53,3 +53,15 @@ There are two main reasons:
 so there are probably horrendous memory corrupting, world-destroying bugs
 lurking within. Use at your own risk!
 * GNU/Linux only currently.
+
+# Usage
+
+Edit start.sh, setting `MTX_SERVER`, `MTX_NAME` and maybe `MTX_LISTEN_PORT`.
+`MTX_NAME` should probably be just the domain of `MTX_SERVER`.
+`MTX_LISTEN_PORT` is where the "IRCd" side of morpheus will listen.
+
+Next, add a server to your IRC client. Assuming you're running morpheus on your local
+computer, you'd add a server of 127.0.0.1/PORT where PORT is what you set `MTX_LISTEN_PORT`
+to, or 1999 by default. Set the username and server password to your matrix userid and password.
+
+If all goes well, you should be connected to the matrix server when you connect to morpheus.

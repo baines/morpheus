@@ -1,2 +1,4 @@
 /morpheus
 /build
+/start-*.sh
+/dbg*

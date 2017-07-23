@@ -1,4 +1,5 @@
 * handle message splitting
+* call /logout on disconnect
 * away-notify CAP for presence updates
 * room lookup for /list
 	* /publicRooms endpoint
@@ -22,3 +23,5 @@
 * daemon()
 * pagination
 * rate limiting
+* olm stuff?
+* set display name based on nick / real name?

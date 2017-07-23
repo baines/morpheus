@@ -50,10 +50,12 @@ static void mtx_event_message(struct sync_state* state, yajl_val obj){
 			"m.video", "m.image", "m.file", "m.audio"
 		};
 
-		// TODO: m.notice, m.location
+		// TODO: m.location
 
 		char* msg = NULL;
-		if(strcmp(type->u.string, "m.text") == 0){
+		bool is_notice = strcmp(type->u.string, "m.notice") == 0;
+
+		if(is_notice || strcmp(type->u.string, "m.text") == 0){
 			msg = strdup(body_str);
 		} else if(strcmp(type->u.string, "m.emote") == 0){
 			asprintf(&msg, "\001ACTION %s\001", body_str);
@@ -67,7 +69,7 @@ static void mtx_event_message(struct sync_state* state, yajl_val obj){
 					if(strcmp(type->u.string, msgtypes[i]) == 0){
 						asprintf(
 							&msg,
-							"\002[\0039%s\003]\002 %s: %s" MTX_CLIENT "/_matrix/media/r0/download/%s",
+							"\002[\0039%s\003]\002 %s: %s/_matrix/media/r0/download/%s",
 							media_mime->u.string,
 							body_str,
 							global.mtx_server_base_url,
@@ -80,14 +82,14 @@ static void mtx_event_message(struct sync_state* state, yajl_val obj){
 		}
 
 		if(msg){
-			sb(char) rich_msg = rich ? cvt_m2i_msg(msg) : NULL;
+			sb(char) msg_converted = rich ? cvt_m2i_msg_rich(msg) : cvt_m2i_msg_plain(msg);
 
 			struct irc_msg irc_msg = {
-				.cmd = "PRIVMSG",
+				.cmd = is_notice ? "NOTICE" : "PRIVMSG",
 				.prefix = sender->u.string,
 				.params = {
 					room_name,
-					rich_msg ?: msg
+					msg_converted,
 				},
 				.pcount = 2,
 				.flags = SF_CVT_PREFIX
@@ -103,7 +105,7 @@ static void mtx_event_message(struct sync_state* state, yajl_val obj){
 			}
 
 			irc_send(state->client, &irc_msg);
-			sb_free(rich_msg);
+			sb_free(msg_converted);
 			free(msg);
 		}
 	}
@@ -141,8 +143,8 @@ static void mtx_event_member(struct sync_state* state, yajl_val obj){
 		mtx_id member_id = id_intern(member->u.string);
 
 		if(strcmp(membership->u.string, "join") == 0){
-			room_member_add(state->room, member_id, MEMBER_STATE_JOINED);
-			if(!(state->flags & (SYNC_NEW_ROOM | SYNC_INVITE)) && state->room->canon){
+			struct member* m = room_member_add(state->room, member_id, MEMBER_STATE_JOINED);
+			if((state->flags & SYNC_TIMELINE) && state->room->canon && m->id != state->client->mtx_id){
 				IRC_SEND_PF(state->client, member->u.string, SF_CVT_PREFIX | SF_CVT_ROOM_P0, "JOIN", state->room->canon);
 			}
 		} else if(strcmp(membership->u.string, "leave") == 0){
@@ -191,11 +193,6 @@ static void mtx_event_canon_alias(struct sync_state* state, yajl_val obj){
 		printf("Canonical alias = [%s]\n", alias->u.string);
 		free(state->room->canon);
 		state->room->canon = strdup(alias->u.string);
-
-		if(!(state->flags & SYNC_INVITE)){
-			IRC_SEND_PF(state->client, id_lookup(state->client->mtx_id), SF_CVT_PREFIX | SF_CVT_ROOM_P0, "JOIN", state->room->canon);
-			irc_send_names(state->client, state->room);
-		}
 	}
 }
 
@@ -210,9 +207,9 @@ static void mtx_event_power_levels(struct sync_state* state, yajl_val obj){
 			const char* user = users->u.object.keys[i];
 			yajl_val power   = users->u.object.values[i];
 
-			struct member* member = room_member_get(state->room, id_intern(user));
+			struct member* member = room_member_add(state->room, id_intern(user), 0);
 
-			if(member && YAJL_IS_INTEGER(power)){
+			if(YAJL_IS_INTEGER(power)){
 				// TODO: if not SYNC_NEW_ROOM, check the old value
 				//       and send a MODE for +o, -o, +h, -h, etc
 				// XXX:  comparing old value is not safe w.r.t multiple clients,

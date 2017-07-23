@@ -8,6 +8,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <errno.h>
+#include <locale.h>
 #include "morpheus.h"
 
 static int epoll_tag_listen = EPOLL_TAG_IRC_LISTEN;
@@ -49,7 +50,7 @@ void epoll_dispatch(struct epoll_event* e){
 				} else if(n == 0){
 					client_del(client);
 				} else {
-					printf("client data: %.*s", n, buf);
+					//printf("client data: %.*s", n, buf);
 					irc_recv(client, buf, n);
 				}
 			}
@@ -88,6 +89,7 @@ void epoll_dispatch(struct epoll_event* e){
 
 int main(int argc, char** argv){
 	srand(time(NULL) ^ (getpid() << 10));
+	assert(setlocale(LC_CTYPE, "C.UTF-8"));
 
 	global.mtx_server_base_url = getenv("MTX_URL");
 	if(!global.mtx_server_base_url){
@@ -102,13 +104,19 @@ int main(int argc, char** argv){
 	global.epoll = epoll_create(16);
 	main_sock = socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK, 0);
 
+	int listen_port = 1999;
+	const char* port_str = getenv("MTX_LISTEN_PORT");
+	if(port_str){
+		listen_port = atoi(port_str);
+	}
+
 	if(main_sock == -1){
 		perror("socket");
 	}
 
 	struct sockaddr_in in = {
 		.sin_family = AF_INET,
-		.sin_port = htons(1337),
+		.sin_port = htons(listen_port),
 		.sin_addr.s_addr = INADDR_ANY,
 	};
 

@@ -56,9 +56,10 @@ void mtx_recv_sync(struct client* client, struct net_msg* msg){
 				}
 
 			} else if(YAJL_IS_INTEGER(ago) && id_intern(user->u.string) == client->mtx_id){
-				client->last_active = time(NULL) - ago->u.number.i;
+				// XXX: this is likely wrong, ago gets updated when we login? :(
+				//      figure out if our last active time is available somewhere else?
+				client->last_active = time(NULL) - (ago->u.number.i / 1000);
 			}
-
 
 			// TODO: this is the part where we find out if a user's status changed
 			//       and send an AWAY message if applicable and the away-notify cap is enabled
@@ -107,6 +108,11 @@ void mtx_recv_sync(struct client* client, struct net_msg* msg){
 				printf("Join state: [%s]\n", type->u.string);
 				mtx_event(type->u.string, &state, events->u.array.values[j]);
 			}
+		}
+
+		if(state.room->canon){
+			IRC_SEND_PF(client, id_lookup(client->mtx_id), SF_CVT_PREFIX | SF_CVT_ROOM_P0, "JOIN", state.room->canon);
+			irc_send_names(client, state.room);
 		}
 
 		// timeline events
@@ -197,6 +203,10 @@ void mtx_recv_sync(struct client* client, struct net_msg* msg){
 			}
 		}
 
+		// XXX: I would like to do this logic, but the invite state doesn't seem to always include
+		//      any info about the canonical_alias or other members.
+		//      If there is a way to get that before joining, then I'd like to know...
+#if 0
 		int room_type;
 		char* irc_room = room_get_irc_name(state.room, client, &room_type);
 
@@ -211,6 +221,9 @@ void mtx_recv_sync(struct client* client, struct net_msg* msg){
 		}
 
 		free(irc_room);
+#else
+		mtx_send_join(client, room);
+#endif
 	}
 
 	printf("sync %d [%s]\n", client->irc_sock, msg->data);
@@ -265,11 +278,12 @@ void mtx_recv(struct client* client, struct net_msg* msg){
 		case MTX_MSG_SYNC: {
 			if(status == 200){
 				mtx_recv_sync(client, msg);
-				// TODO: determine when/if to resync. rate-limit
-				mtx_send_sync(client);
 			} else {
 				printf("SYNC FAIL: [%s]\n", msg->data);
 			}
+
+			// TODO: determine when/if to resync. rate-limit
+			mtx_send_sync(client);
 		} break;
 
 		case MTX_MSG_MSG: {
@@ -400,10 +414,12 @@ void mtx_send_sync(struct client* client){
 		0
 	);
 
+	// XXX: I would like to poll for longer, but anything over ~60s seems to time out with nginx
+
 	char* url;
 	asprintf(
 		&url,
-		"%s" MTX_CLIENT "/sync?timeout=120000%s%s&access_token=%s&filter=%s",
+		"%s" MTX_CLIENT "/sync?timeout=55000%s%s&access_token=%s&filter=%s",
 		global.mtx_server_base_url,
 		client->mtx_since ? "&since=" : "&full_state=true",
 		client->mtx_since ?: "",
