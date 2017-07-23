@@ -110,7 +110,7 @@ void mtx_recv_sync(struct client* client, struct net_msg* msg){
 			}
 		}
 
-		if(state.room->canon){
+		if(!known_to_irc && state.room->canon){
 			IRC_SEND_PF(client, id_lookup(client->mtx_id), SF_CVT_PREFIX | SF_CVT_ROOM_P0, "JOIN", state.room->canon);
 			irc_send_names(client, state.room);
 		}
