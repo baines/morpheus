@@ -265,7 +265,7 @@ sb(char) cvt_i2m_msg(const char* msg, sb(char)* stripped){
 				}
 
 				add_char_escaped(*p, &out);
-				add_char_escaped(*p, stripped);
+				sb_push(*stripped, *p);
 				old_state = state;
 			}
 		}

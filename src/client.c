@@ -40,6 +40,10 @@ void client_del(struct client* client){
 
 	close(client->irc_sock);
 
+	free(client->irc_nick);
+	free(client->irc_user);
+	free(client->irc_pass);
+
 	free(client->mtx_token);
 	free(client->mtx_since);
 	free(client->mtx_server);
@@ -77,9 +81,16 @@ void client_tick(){
 
 			if(cmd_diff >= 90){
 				disconnect = true;
-			} else if(!((*c)->irc_state & IRC_STATE_IDLE) && cmd_diff >= 60){
-				send((*c)->irc_sock, "PING :morpheus\r\n", 16, 0);
-				(*c)->irc_state |= IRC_STATE_IDLE;
+			} else {
+				if(!((*c)->irc_state & IRC_STATE_IDLE) && cmd_diff >= 60){
+					send((*c)->irc_sock, "PING :morpheus\r\n", 16, 0);
+					(*c)->irc_state |= IRC_STATE_IDLE;
+				}
+
+				if((*c)->next_sync && now > (*c)->next_sync){
+					mtx_send_sync(*c);
+					(*c)->next_sync = 0;
+				}
 			}
 		} else {
 			disconnect = now - (*c)->connect_time > 15 || now - (*c)->last_cmd_time > 5;

@@ -238,6 +238,7 @@ void mtx_recv_sync(struct client* client, struct net_msg* msg){
 
 void mtx_recv(struct client* client, struct net_msg* msg){
 
+	time_t now = time(NULL);
 	long status = 0;
 	curl_easy_getinfo(msg->curl, CURLINFO_HTTP_CODE, &status);
 	yajl_val root = yajl_tree_parse(msg->data, NULL, 0);
@@ -276,14 +277,14 @@ void mtx_recv(struct client* client, struct net_msg* msg){
 		} break;
 
 		case MTX_MSG_SYNC: {
+			// TODO: handle the different possible error statuses separately
 			if(status == 200){
 				mtx_recv_sync(client, msg);
+				mtx_send_sync(client);
 			} else {
 				printf("SYNC FAIL: [%s]\n", msg->data);
+				client->next_sync = now + 10;
 			}
-
-			// TODO: determine when/if to resync. rate-limit
-			mtx_send_sync(client);
 		} break;
 
 		case MTX_MSG_MSG: {
@@ -392,7 +393,20 @@ void mtx_send_login(struct client* client){
 	assert(client->irc_pass);
 
 	char* json = NULL;
-	yajl_generate(&json, "{ 'type': 'm.login.password', 'user': %s, 'password': %s }", client->irc_user, client->irc_pass);
+	yajl_generate(
+		&json,
+		"{ "
+		"'type': 'm.login.password', "
+		"'user': %s, 'password': %s, "
+		"'device_id': %s, "
+		"'initial_device_display_name': %s, "
+		"}",
+		client->irc_user,
+		client->irc_pass,
+		global.device_id,
+		global.device_name
+	);
+
 	curl_easy_setopt(msg->curl, CURLOPT_COPYPOSTFIELDS, json);
 	free(json);
 
@@ -400,9 +414,14 @@ void mtx_send_login(struct client* client){
 		volatile char *p = client->irc_pass;
 		while(*p) *p++ = 0;
 		free(client->irc_pass);
+		client->irc_pass = NULL;
 	}
 
 	net_msg_send(msg);
+}
+
+void mtx_send_logout(struct client* client){
+
 }
 
 void mtx_send_sync(struct client* client){

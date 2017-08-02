@@ -221,6 +221,7 @@ struct client {
 	time_t connect_time;
 	time_t last_cmd_time;
 	time_t last_active;
+	time_t next_sync;
 
 	int epoll_irc_tag;
 
@@ -231,6 +232,8 @@ struct client {
 extern struct global_state {
 	const char* mtx_server_base_url;
 	const char* mtx_server_name;
+	const char* device_id;
+	const char* device_name;
 	int epoll;
 } global;
 

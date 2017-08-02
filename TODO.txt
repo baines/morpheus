@@ -25,3 +25,4 @@
 * rate limiting
 * olm stuff?
 * set display name based on nick / real name?
+* split messages into multiple when matrix contains \n

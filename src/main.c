@@ -16,6 +16,7 @@ static int epoll_tag_timer  = EPOLL_TAG_IRC_TIMER;
 static int main_sock;
 static int irc_timer;
 
+static char default_device[16];
 struct global_state global;
 
 void epoll_dispatch(struct epoll_event* e){
@@ -65,7 +66,7 @@ void epoll_dispatch(struct epoll_event* e){
 			int timer_fd = ((int*)e->data.ptr)[1];
 			uint64_t blah;
 			ssize_t ret;
-			
+
 			do {
 				ret = read(timer_fd, &blah, 8);
 			} while(ret == -1 && errno == EAGAIN);
@@ -89,7 +90,10 @@ void epoll_dispatch(struct epoll_event* e){
 
 int main(int argc, char** argv){
 	srand(time(NULL) ^ (getpid() << 10));
-	assert(setlocale(LC_CTYPE, "C.UTF-8"));
+	if(!setlocale(LC_CTYPE, "C.UTF-8")){
+		// XXX: hopefully this is a utf-8 locale. we should check to make sure though.
+		setlocale(LC_CTYPE, "");
+	}
 
 	global.mtx_server_base_url = getenv("MTX_URL");
 	if(!global.mtx_server_base_url){
@@ -99,6 +103,17 @@ int main(int argc, char** argv){
 	global.mtx_server_name = getenv("MTX_NAME");
 	if(!global.mtx_server_name){
 		global.mtx_server_name = "localhost";
+	}
+
+	global.device_id = getenv("MTX_DEVICE_ID");
+	if(!global.device_id){
+		snprintf(default_device, sizeof(default_device), "MORPHEUS_%04hx", rand());
+		global.device_id = default_device;
+	}
+
+	global.device_name = getenv("MTX_DEVICE_NAME");
+	if(!global.device_name){
+		global.device_name = "Morpheus (https://github.com/baines/morpheus)";
 	}
 
 	global.epoll = epoll_create(16);
