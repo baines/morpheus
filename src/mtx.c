@@ -105,7 +105,7 @@ void mtx_recv_sync(struct client* client, struct net_msg* msg){
 				yajl_val type = YAJL_GET(events->u.array.values[j], yajl_t_string, ("type"));
 				if(!type) continue;
 
-				printf("Join state: [%s]\n", type->u.string);
+				//printf("Join state: [%s]\n", type->u.string);
 				mtx_event(type->u.string, &state, events->u.array.values[j]);
 			}
 		}
@@ -125,7 +125,7 @@ void mtx_recv_sync(struct client* client, struct net_msg* msg){
 				yajl_val type = YAJL_GET(events->u.array.values[j], yajl_t_string, ("type"));
 				if(!type) continue;
 
-				printf("Join timel: [%s]\n", type->u.string);
+				//printf("Join timel: [%s]\n", type->u.string);
 				mtx_event(type->u.string, &state, events->u.array.values[j]);
 			}
 		}
@@ -226,7 +226,16 @@ void mtx_recv_sync(struct client* client, struct net_msg* msg){
 #endif
 	}
 
-	printf("sync %d [%s]\n", client->irc_sock, msg->data);
+#if 0
+	FILE* f = fopen("debug.txt", "r+");
+	if(!f){
+		f = fopen("debug.txt", "w");
+		fputs(msg->data, f);
+	}
+	fclose(f);
+#endif
+
+	//printf("sync %d [%s]\n", client->irc_sock, msg->data);
 
 	if(since){
 		free(client->mtx_since);
@@ -252,6 +261,7 @@ void mtx_recv(struct client* client, struct net_msg* msg){
 				yajl_val tkn  = YAJL_GET(root, yajl_t_string, ("access_token"));
 				yajl_val uid  = YAJL_GET(root, yajl_t_string, ("user_id"));
 				yajl_val serv = YAJL_GET(root, yajl_t_string, ("home_server"));
+				yajl_val dev  = YAJL_GET(root, yajl_t_string, ("device_id"));
 
 				if(tkn && uid){
 					client->mtx_token  = strdup(tkn->u.string);
@@ -262,9 +272,10 @@ void mtx_recv(struct client* client, struct net_msg* msg){
 					mtx_send_sync(client);
 
 					IRC_SEND_NUM(client, "001", "Welcome to IRC");
-					IRC_SEND_NUM(client, "002", "Your host is me :3");
+					IRC_SEND_NUM(client, "002", "Your device_id is", dev ? dev->u.string : "unknown");
 					IRC_SEND_NUM(client, "003", "This server was created at some point");
 					IRC_SEND_NUM(client, "004", "morpheus 1.0 ¯\\_(ツ)_/¯");
+					IRC_SEND_NUM(client, "005", "PREFIX=(ohv)@%+ CHANTYPES=#&+", "are supported by this server");
 
 				} else {
 					status = 0;

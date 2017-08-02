@@ -138,6 +138,9 @@ static void mtx_event_topic(struct sync_state* state, yajl_val obj){
 static void mtx_event_member(struct sync_state* state, yajl_val obj){
 	yajl_val membership = YAJL_GET(obj, yajl_t_string, ("content", "membership"));
 	yajl_val member     = YAJL_GET(obj, yajl_t_string, ("state_key"));
+	yajl_val kind       = YAJL_GET(obj, yajl_t_string, ("content", "kind"));
+
+	if(kind && strcmp(kind->u.string, "guest") == 0) return;
 
 	if(member && membership){
 		mtx_id member_id = id_intern(member->u.string);

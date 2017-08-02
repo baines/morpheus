@@ -167,6 +167,7 @@ struct member {
 	mtx_id id;
 	int state;
 	int power;
+	bool is_guest;
 };
 
 struct room {

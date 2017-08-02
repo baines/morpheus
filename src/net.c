@@ -85,6 +85,12 @@ void net_init(void){
 	curl_multi_setopt(curl, CURLMOPT_MAX_PIPELINE_LENGTH, 32);
 }
 
+static int msg_sort(const void* _a, const void* _b){
+	struct net_msg* const* a = _a;
+	struct net_msg* const* b = _b;
+	return (*b)->type - (*a)->type;
+}
+
 void net_update(int emask, struct sock* s){
 
 	int curlmask = 0;
@@ -94,6 +100,8 @@ void net_update(int emask, struct sock* s){
 
 	int blah;
 	curl_multi_socket_action(curl, s ? s->fd : CURL_SOCKET_TIMEOUT, curlmask, &blah);
+
+	sb(struct net_msg**) done_list = NULL;
 
 	CURLMsg* cm;
 	while((cm = curl_multi_info_read(curl, &blah))){
@@ -107,13 +115,30 @@ void net_update(int emask, struct sock* s){
 			if((*msg)->curl == cm->easy_handle){
 				printf("Recieved mtx msg, type: %d, client: %d\n", (*msg)->type, client->irc_sock);
 				sb_push((*msg)->data, 0);
-				mtx_recv(client, *msg);
-				net_msg_free(*msg);
-				*msg = (*msg)->next;
+				sb_push(done_list, msg);
 				break;
 			}
 		}
 	}
+
+	if(!done_list) return;
+
+	qsort(done_list, sb_count(done_list), sizeof(struct net_msg**), &msg_sort);
+
+	sb_each(m, done_list){
+		struct net_msg** msg = *m;
+
+		char* ptr;
+		curl_easy_getinfo((*msg)->curl, CURLINFO_PRIVATE, &ptr);
+		struct client* client = (struct client*)ptr;
+
+		mtx_recv(client, *msg);
+
+		net_msg_free(*msg);
+		*msg = (*msg)->next;
+	}
+
+	sb_free(done_list);
 }
 
 static size_t net_curl_cb(char* ptr, size_t sz, size_t nmemb, void* data){

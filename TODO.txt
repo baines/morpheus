@@ -26,3 +26,6 @@
 * olm stuff?
 * set display name based on nick / real name?
 * split messages into multiple when matrix contains \n
+* keep device_id stable for same device+user pair
+	* show the device_id to the user in welcome message
+* figure something sensible out for channels without a canonical alias

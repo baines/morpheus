@@ -175,8 +175,7 @@ out:
 }
 
 void irc_send_names(struct client* client, struct room* room){
-	char buf[512] = "";
-	char* p = buf;
+	sb(char) buf = NULL;
 
 	if(!room || !room->canon) return;
 
@@ -185,21 +184,39 @@ void irc_send_names(struct client* client, struct room* room){
 
 	// We also need to either do msg splitting here, or let irc_send take care of that
 
+	char* room_name = room_get_irc_name(room, client, NULL);
+
 	sb_each(m, room->members){
+		char prefix = 0;
+
 		if(m->power == 100){
-			*p++ = '@';
+			prefix = '@';
 		} else if(m->power >= 50){
-			*p++ = '%';
+			prefix = '%';
 		}
-		// XXX: fix this mess
-		const char* c = id_lookup(m->id);
-		p = stpcpy(p, strndupa(c+1, strchrnul(c+1, ':') - (c+1)));
-		*p++ = ' ';
+
+		const char* c = id_lookup(m->id)+1;
+		const char* end = strchrnul(c, ':');
+		size_t name_len = end - c;
+
+		// TODO: better sizing
+		if(sb_count(buf) + (name_len+2) > 400){
+			sb_push(buf, 0);
+			IRC_SEND_NUM(client, "353", "=", room_name, buf);
+			stb__sbn(buf) = 0;
+		}
+
+		if(prefix){
+			sb_push(buf, prefix);
+		}
+		memcpy(sb_add(buf, name_len), c, name_len);
+		sb_push(buf, ' ');
 	}
-	*p = 0;
+	sb_push(buf, 0);
 
-	const char* r = strndupa(room->canon, strchrnul(room->canon, ':') - room->canon);
+	IRC_SEND_NUM(client, "353", "=", room_name, buf);
+	IRC_SEND_NUM(client, "366", room_name, "End of /NAMES list.");
 
-	IRC_SEND_NUM(client, "353", "=", r, buf);
-	IRC_SEND_NUM(client, "366", r, "End of /NAMES list.");
+	free(room_name);
+	sb_free(buf);
 }
