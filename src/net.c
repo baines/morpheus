@@ -101,41 +101,78 @@ void net_update(int emask, struct sock* s){
 	int blah;
 	curl_multi_socket_action(curl, s ? s->fd : CURL_SOCKET_TIMEOUT, curlmask, &blah);
 
-	sb(struct net_msg**) done_list = NULL;
+	sb(struct net_msg*) done_list = NULL;
+
+	// get all the completed messages from curl
 
 	CURLMsg* cm;
 	while((cm = curl_multi_info_read(curl, &blah))){
 		if(cm->msg != CURLMSG_DONE) continue;
 
-		char* ptr;
-		curl_easy_getinfo(cm->easy_handle, CURLINFO_PRIVATE, &ptr);
-		struct client* client = (struct client*)ptr;
+		struct client* client;
+		curl_easy_getinfo(cm->easy_handle, CURLINFO_PRIVATE, &client);
 
-		for(struct net_msg** msg = &client->msgs; *msg; msg = &(*msg)->next){
-			if((*msg)->curl == cm->easy_handle){
-				printf("Recieved mtx msg, type: %d, client: %d\n", (*msg)->type, client->irc_sock);
-				sb_push((*msg)->data, 0);
+		for(struct net_msg* msg = client->msgs; msg; msg = msg->next){
+			if(msg->curl == cm->easy_handle){
+				printf("[%02d] MTX msg [%s]\n", client->irc_sock, mtx_msg_strs[msg->type]);
+				sb_push(msg->data, 0);
 				sb_push(done_list, msg);
-				break;
+				msg->done = true;
+
+				long status = 0L - cm->data.result;
+				if(-status == CURLE_OK){
+					curl_easy_getinfo(cm->easy_handle, CURLINFO_HTTP_CODE, &status);
+				}
+				msg->curl_status = status;
+			} else if(msg->done){
+				// this must be a completed SYNC that we deferred processing, add it again.
+				sb_push(done_list, msg);
 			}
 		}
 	}
 
 	if(!done_list) return;
 
-	qsort(done_list, sb_count(done_list), sizeof(struct net_msg**), &msg_sort);
+	// sort the messages so that SYNCs come last
+	qsort(done_list, sb_count(done_list), sizeof(struct net_msg*), &msg_sort);
 
 	sb_each(m, done_list){
-		struct net_msg** msg = *m;
+		struct net_msg* msg = *m;
+		struct client* client;
+		curl_easy_getinfo(msg->curl, CURLINFO_PRIVATE, &client);
 
-		char* ptr;
-		curl_easy_getinfo((*msg)->curl, CURLINFO_PRIVATE, &ptr);
-		struct client* client = (struct client*)ptr;
+		// count number of non-done messages this client has
+		int remaining_msgs = 0;
+		for(struct net_msg* tmp = client->msgs; tmp; tmp = tmp->next){
+			if(!tmp->done) remaining_msgs++;
+		}
 
-		mtx_recv(client, *msg);
+		// if there is a remaining message and this completed one is a SYNC, we need to wait
+		// until the other message completes first. otherwise duplicate messages can happen.
+		if(msg->type == MTX_MSG_SYNC && remaining_msgs){
+			*m = NULL; // so it doesn't get free'd in the next loop
+			continue;
+		}
 
-		net_msg_free(*msg);
-		*msg = (*msg)->next;
+		mtx_recv(client, msg);
+	}
+
+	// free completed messages
+	sb_each(m, done_list){
+		struct net_msg* msg = *m;
+		if(!msg) continue;
+
+		struct client* client;
+		curl_easy_getinfo(msg->curl, CURLINFO_PRIVATE, &client);
+
+		for(struct net_msg** p = &client->msgs; *p; /**/){
+			if(*p == msg){
+				*p = msg->next;
+				free(msg);
+			} else {
+				p = &(*p)->next;
+			}
+		}
 	}
 
 	sb_free(done_list);
@@ -165,8 +202,11 @@ struct net_msg* net_msg_new(struct client* client, int type){
 
 	if(type == MTX_MSG_SYNC){
 		// XXX: breaks other GETs if they're pipelined onto the sync request
-		//      so only enable it for sync itself
-		curl_easy_setopt(msg->curl, CURLOPT_PIPEWAIT, 1L);
+		//      so only enable it for sync itself (even this causes issues? investigate)
+		// curl_easy_setopt(msg->curl, CURLOPT_PIPEWAIT, 1L);
+	} else {
+		// all the non-sync messages should complete timely, if not something is busted.
+		curl_easy_setopt(msg->curl, CURLOPT_TIMEOUT, 10);
 	}
 
 	//curl_easy_setopt(msg->curl, CURLOPT_VERBOSE, 1L);

@@ -29,3 +29,10 @@
 * keep device_id stable for same device+user pair
 	* show the device_id to the user in welcome message
 * figure something sensible out for channels without a canonical alias
+	+Linux
+	+Site_Activity
+	+Linux|1932 -> 1932 represents other home server?
+	sanitize + convert display names of rooms/users to irc format?
+* make sure a sync is running on tick?
+* handle curl errors gracefully
+

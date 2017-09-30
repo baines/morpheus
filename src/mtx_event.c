@@ -193,7 +193,7 @@ static void mtx_event_aliases(struct sync_state* state, yajl_val obj){
 static void mtx_event_canon_alias(struct sync_state* state, yajl_val obj){
 	yajl_val alias = YAJL_GET(obj, yajl_t_string, ("content", "alias"));
 	if(alias){
-		printf("Canonical alias = [%s]\n", alias->u.string);
+		printf("[%02d]     Canonical alias = [%s]\n", state->client->irc_sock, alias->u.string);
 		free(state->room->canon);
 		state->room->canon = strdup(alias->u.string);
 	}

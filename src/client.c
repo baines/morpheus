@@ -5,6 +5,7 @@
 #include <sys/epoll.h>
 #include <netinet/in.h>
 #include <netinet/ip.h>
+#include <netdb.h>
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
@@ -12,14 +13,19 @@
 
 static struct client* client_list;
 
-struct client* client_new(int sock){
+struct client* client_new(int sock, struct sockaddr* addr, socklen_t len){
 	struct client* client = calloc(1, sizeof(*client));
 
 	client->epoll_irc_tag = EPOLL_TAG_IRC_CLIENT;
 	client->irc_sock = sock;
 	client->connect_time = client->last_cmd_time = time(0);
 
-	printf("new client: %d\n", sock);
+	char host[INET6_ADDRSTRLEN] = {};
+	char port[8] = {};
+
+	getnameinfo(addr, len, host, sizeof(host), port, sizeof(port), NI_NUMERICHOST | NI_NUMERICSERV);
+
+	printf("[%02d] --- Client created [%s:%s]. ---\n", sock, host, port);
 
 	struct epoll_event ev = {
 		.events = EPOLLIN | EPOLLRDHUP,
@@ -36,8 +42,9 @@ struct client* client_new(int sock){
 
 void client_del(struct client* client){
 
-	printf("rip client: %d\n", client->irc_sock);
+	printf("[%02d] --- Client destroyed. ---\n", client->irc_sock);
 
+	epoll_ctl(global.epoll, EPOLL_CTL_DEL, client->irc_sock, NULL);
 	close(client->irc_sock);
 
 	free(client->irc_nick);
@@ -87,7 +94,14 @@ void client_tick(){
 					(*c)->irc_state |= IRC_STATE_IDLE;
 				}
 
-				if((*c)->next_sync && now > (*c)->next_sync){
+				int pending_msgs = 0;
+				for(struct net_msg* tmp = (*c)->msgs; tmp; tmp = tmp->next){
+					if(!tmp->done) pending_msgs++;
+				}
+
+				if(!(*c)->next_sync && pending_msgs == 0){
+					printf("WARNING: client %d has no sync ongoing?\n", (*c)->irc_sock);
+				} else if((*c)->next_sync && now > (*c)->next_sync){
 					mtx_send_sync(*c);
 					(*c)->next_sync = 0;
 				}

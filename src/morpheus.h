@@ -19,7 +19,7 @@ struct irc_msg;
 
 typedef uint32_t mtx_id;
 
-struct client*  client_new        (int socket);
+struct client*  client_new        (int socket, struct sockaddr* addr, socklen_t);
 void            client_del        (struct client*);
 void            client_tick       (void);
 
@@ -96,8 +96,8 @@ enum {
 
 // For discriminating which type of message a net_msg struct refers to
 enum {
-	MTX_MSG_LOGIN,
 	MTX_MSG_SYNC,
+	MTX_MSG_LOGIN,
 	MTX_MSG_MSG,
 	MTX_MSG_TOPIC,
 	MTX_MSG_JOIN,
@@ -106,6 +106,8 @@ enum {
 	MTX_MSG_PM_LOOKUP,
 	MTX_MSG_PM_CREATE,
 };
+
+extern const char* mtx_msg_strs[];
 
 // For client->irc_state
 enum {
@@ -157,8 +159,10 @@ struct sock {
 struct net_msg {
 	int   type;
 	CURL* curl;
+	long  curl_status;
 	char* data;
 	void* user_data;
+	bool  done;
 	struct curl_slist* headers;
 	struct net_msg* next;
 };

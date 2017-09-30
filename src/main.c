@@ -9,6 +9,7 @@
 #include <unistd.h>
 #include <errno.h>
 #include <locale.h>
+#include <signal.h>
 #include "morpheus.h"
 
 static int epoll_tag_listen = EPOLL_TAG_IRC_LISTEN;
@@ -25,15 +26,14 @@ void epoll_dispatch(struct epoll_event* e){
 
 		case EPOLL_TAG_IRC_LISTEN: {
 			struct sockaddr_storage addr;
-			socklen_t size = sizeof(addr);
+			socklen_t len = sizeof(addr);
 
-			int fd = accept(main_sock, (struct sockaddr*)&addr, &size);
+			int fd = accept(main_sock, (struct sockaddr*)&addr, &len);
 
 			if(fd == -1){
 				perror("accept");
 			} else {
-				// TODO: give addr?
-				client_new(fd);
+				client_new(fd, (struct sockaddr*)&addr, len);
 			}
 		} break;
 
@@ -107,7 +107,7 @@ int main(int argc, char** argv){
 
 	global.device_id = getenv("MTX_DEVICE_ID");
 	if(!global.device_id){
-		snprintf(default_device, sizeof(default_device), "MORPHEUS_%04hx", rand());
+		snprintf(default_device, sizeof(default_device), "MORPHEUS_%04hx", (short)rand());
 		global.device_id = default_device;
 	}
 
@@ -159,6 +159,8 @@ int main(int argc, char** argv){
 	epoll_ctl(global.epoll, EPOLL_CTL_ADD, irc_timer, &ev);
 
 	net_init();
+
+	signal(SIGPIPE, SIG_IGN);
 
 	while(1){
 		struct epoll_event buf[8];

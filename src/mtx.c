@@ -13,12 +13,25 @@
 	free(url);\
 })
 
+#define cprintf(fmt, ...) printf("[%02d] " fmt, client->irc_sock, ##__VA_ARGS__)
+
 struct pm_data {
 	mtx_id friend;
 	char message[];
 };
 
 static void mtx_send_pm_create_room (struct client*, struct pm_data* data);
+
+const char* mtx_msg_strs[] = {
+	[MTX_MSG_SYNC]      = "SYNC",
+	[MTX_MSG_LOGIN]     = "LOGIN",
+	[MTX_MSG_MSG]       = "MSG",
+	[MTX_MSG_TOPIC]     = "TOPIC",
+	[MTX_MSG_JOIN]      = "JOIN",
+	[MTX_MSG_LEAVE]     = "LEAVE",
+	[MTX_MSG_PM_LOOKUP] = "PM_LOOKUP",
+	[MTX_MSG_PM_CREATE] = "PM_CREATE",
+};
 
 void mtx_recv_sync(struct client* client, struct net_msg* msg){
 	yajl_val root  = yajl_tree_parse(msg->data, NULL, 0);
@@ -72,7 +85,7 @@ void mtx_recv_sync(struct client* client, struct net_msg* msg){
 		yajl_val obj = joins->u.object.values[i];
 		mtx_id room_id = id_intern(room);
 
-		printf("Join room: [%s]\n", room);
+		cprintf("Processing events for [%s] (join)\n", room);
 
 		struct sync_state state = {
 			.room   = room_new(room_id),
@@ -105,7 +118,7 @@ void mtx_recv_sync(struct client* client, struct net_msg* msg){
 				yajl_val type = YAJL_GET(events->u.array.values[j], yajl_t_string, ("type"));
 				if(!type) continue;
 
-				//printf("Join state: [%s]\n", type->u.string);
+				//cprintf("Join state: [%s]\n", type->u.string);
 				mtx_event(type->u.string, &state, events->u.array.values[j]);
 			}
 		}
@@ -125,7 +138,7 @@ void mtx_recv_sync(struct client* client, struct net_msg* msg){
 				yajl_val type = YAJL_GET(events->u.array.values[j], yajl_t_string, ("type"));
 				if(!type) continue;
 
-				//printf("Join timel: [%s]\n", type->u.string);
+				//cprintf("Join timel: [%s]\n", type->u.string);
 				mtx_event(type->u.string, &state, events->u.array.values[j]);
 			}
 		}
@@ -144,7 +157,7 @@ void mtx_recv_sync(struct client* client, struct net_msg* msg){
 				const char* r = strndupa(state.room->canon, strchrnul(state.room->canon, ':') - state.room->canon);
 
 				IRC_SEND_NUM(client, "332", r, topic->u.string);
-				IRC_SEND_NUM(client, "333", r, epoch_str);
+				IRC_SEND_NUM(client, "333", r, hostmask, epoch_str);
 
 				free(hostmask);
 			}
@@ -155,7 +168,7 @@ void mtx_recv_sync(struct client* client, struct net_msg* msg){
 		const char* room = leaves->u.object.keys[i];
 		mtx_id room_id = id_intern(room);
 
-		printf("Leave room: [%s]\n", room);
+		cprintf("Processing events for [%s] (leave)\n", room);
 
 		struct sync_state state = {
 			.room   = room_new(room_id),
@@ -182,7 +195,7 @@ void mtx_recv_sync(struct client* client, struct net_msg* msg){
 		yajl_val obj = invites->u.object.values[i];
 		mtx_id room_id = id_intern(room);
 
-		printf("Invited to room: [%s]\n", room);
+		cprintf("Processing events for [%s] (invite)\n", room);
 
 		struct sync_state state = {
 			.room   = room_new(room_id),
@@ -235,7 +248,7 @@ void mtx_recv_sync(struct client* client, struct net_msg* msg){
 	fclose(f);
 #endif
 
-	//printf("sync %d [%s]\n", client->irc_sock, msg->data);
+	//cprintf("sync %d [%s]\n", client->irc_sock, msg->data);
 
 	if(since){
 		free(client->mtx_since);
@@ -248,8 +261,6 @@ void mtx_recv_sync(struct client* client, struct net_msg* msg){
 void mtx_recv(struct client* client, struct net_msg* msg){
 
 	time_t now = time(NULL);
-	long status = 0;
-	curl_easy_getinfo(msg->curl, CURLINFO_HTTP_CODE, &status);
 	yajl_val root = yajl_tree_parse(msg->data, NULL, 0);
 
 	switch(msg->type){
@@ -257,7 +268,7 @@ void mtx_recv(struct client* client, struct net_msg* msg){
 		case MTX_MSG_LOGIN: {
 
 			// TODO: track state, we should only get one login?
-			if(status == 200){
+			if(msg->curl_status == 200){
 				yajl_val tkn  = YAJL_GET(root, yajl_t_string, ("access_token"));
 				yajl_val uid  = YAJL_GET(root, yajl_t_string, ("user_id"));
 				yajl_val serv = YAJL_GET(root, yajl_t_string, ("home_server"));
@@ -278,42 +289,45 @@ void mtx_recv(struct client* client, struct net_msg* msg){
 					IRC_SEND_NUM(client, "005", "PREFIX=(ohv)@%+ CHANTYPES=#&+", "are supported by this server");
 
 				} else {
-					status = 0;
+					msg->curl_status = 0;
 				}
 			}
 
-			if(status != 200){
+			if(msg->curl_status == 403){
 				IRC_SEND_NUM(client, "464", "Password incorrect");
+			} else if(msg->curl_status != 200){
+				cprintf("LOGIN FAIL: [%ld] [%s]\n", msg->curl_status, msg->data);
+				IRC_SEND(client, "NOTICE", "*", "Internal Server Error");
 			}
 		} break;
 
 		case MTX_MSG_SYNC: {
 			// TODO: handle the different possible error statuses separately
-			if(status == 200){
+			if(msg->curl_status == 200){
 				mtx_recv_sync(client, msg);
 				mtx_send_sync(client);
 			} else {
-				printf("SYNC FAIL: [%s]\n", msg->data);
+				cprintf("SYNC FAIL: [%ld] [%s]\n", msg->curl_status, msg->data);
 				client->next_sync = now + 10;
 			}
 		} break;
 
 		case MTX_MSG_MSG: {
-			if(status == 200){
+			if(msg->curl_status == 200){
 				yajl_val id = YAJL_GET(root, yajl_t_string, ("event_id"));
 				if(id){
 					sb_push(client->mtx_sent_ids, strdup(id->u.string));
 				}
 			} else {
-				printf("MSG FAIL: [%s]\n", msg->data);
+				cprintf("MSG FAIL: [%ld] [%s]\n", msg->curl_status, msg->data);
 			}
 		} break;
 
 		case MTX_MSG_JOIN: {
-			if(status == 200){
+			if(msg->curl_status == 200){
 				yajl_val room_id = YAJL_GET(root, yajl_t_string, ("room_id"));
 				if(room_id){
-					printf("recv join: %s\n", room_id->u.string);
+					cprintf("Joined [%s]\n", room_id->u.string);
 					room_new(id_intern(room_id->u.string));
 				}
 			} else {
@@ -325,7 +339,7 @@ void mtx_recv(struct client* client, struct net_msg* msg){
 					if(strcmp(err->u.string, "M_FORBIDDEN") == 0){
 						IRC_SEND_NUM(client, "473", msg->user_data, "Cannot join channel (+i)");
 					} else {
-						printf("FIXME: MSG_JOIN: Unknown error: [%s]\n", msg->data);
+						cprintf("FIXME: MSG_JOIN: Unknown error: [%s]\n", msg->data);
 					}
 				}
 			}
@@ -333,18 +347,19 @@ void mtx_recv(struct client* client, struct net_msg* msg){
 		} break;
 
 		case MTX_MSG_LEAVE: {
-			if(status == 200){
-				printf("TODO: leave ok, tell IRC\n");
+			if(msg->curl_status == 200){
+				cprintf("TODO: leave ok, tell IRC\n");
 			} else {
 				char* url = NULL;
 				curl_easy_getinfo(msg->curl, CURLINFO_EFFECTIVE_URL, &url);
-				printf("can't leave? O.o %ld [%s]\nJSON = [%s]\n", status, url, msg->data);
+				cprintf("can't leave? O.o %ld [%s]\nJSON = [%s]\n", msg->curl_status, url, msg->data);
 			}
 		} break;
 
 		case MTX_MSG_TOPIC: {
-			if(status != 200){
+			if(msg->curl_status != 200){
 				// TODO: send error to IRC
+				cprintf("TOPIC FAIL: [%ld] [%s]\n", msg->curl_status, msg->data);
 			}
 		} break;
 
@@ -352,7 +367,7 @@ void mtx_recv(struct client* client, struct net_msg* msg){
 			struct pm_data* data = msg->user_data;
 			assert(data);
 
-			if(status == 200){
+			if(msg->curl_status == 200){
 				// TODO: check if room was created in the meantime?
 				mtx_send_pm_create_room(client, data);
 			} else {
@@ -360,6 +375,8 @@ void mtx_recv(struct client* client, struct net_msg* msg){
 				*strchrnul(who, '!') = 0;
 				IRC_SEND_NUM(client, "401", who, "No such nick/channel.");
 				free(who);
+
+				cprintf("PM_LOOKUP FAIL: [%ld] [%s]\n", msg->curl_status, msg->data);
 			}
 		} break;
 
@@ -370,7 +387,7 @@ void mtx_recv(struct client* client, struct net_msg* msg){
 			yajl_val room = YAJL_GET(root, yajl_t_string, ("room_id"));
 			char buf[256] = "";
 
-			if(status == 200){
+			if(msg->curl_status == 200){
 				assert(room);
 
 				// TODO: notify of room creation in a nice way
@@ -381,8 +398,9 @@ void mtx_recv(struct client* client, struct net_msg* msg){
 				mtx_send_msg(client, r, data->message);
 			} else {
 				// TODO: proper error message
-				snprintf(buf, sizeof(buf), "RIP IN PIECES: [%ld]", status); 
+				snprintf(buf, sizeof(buf), "RIP IN PIECES: [%ld]", msg->curl_status); 
 				IRC_SEND_PF(client, id_lookup(data->friend), SF_CVT_PREFIX, "NOTICE", "bob", buf);
+				cprintf("PM_CREATE FAIL: [%ld] [%s]\n", msg->curl_status, msg->data);
 			}
 
 			free(data);
@@ -412,7 +430,7 @@ void mtx_send_login(struct client* client){
 		"'device_id': %s, "
 		"'initial_device_display_name': %s, "
 		"}",
-		client->irc_user,
+		client->irc_nick,
 		client->irc_pass,
 		global.device_id,
 		global.device_name
@@ -480,7 +498,7 @@ void mtx_send_msg(struct client* client, struct room* room, const char* user_msg
 	sb(char) stripped = NULL;
 	sb(char) html = cvt_i2m_msg(user_msg, &stripped);
 
-	printf("Sending msg: [%.*s] [%.*s]\n", (int)sb_count(stripped), stripped, (int)sb_count(html), html);
+	cprintf("Sending msg: [%.*s] [%.*s]\n", (int)sb_count(stripped), stripped, (int)sb_count(html), html);
 
 	curl_easy_setopt(msg->curl, CURLOPT_CUSTOMREQUEST, "PUT");
 
@@ -498,7 +516,7 @@ void mtx_send_msg(struct client* client, struct room* room, const char* user_msg
 		sb_count(html), html
 	);
 
-	printf("MSG JSON = [%s]\n", json);
+	cprintf("MSG JSON = [%s]\n", json);
 	curl_easy_setopt(msg->curl, CURLOPT_COPYPOSTFIELDS, json);
 	free(json);
 

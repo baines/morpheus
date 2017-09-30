@@ -28,16 +28,17 @@ static void irc_event_privmsg(struct client* client, struct irc_msg* msg){
 		if((room = room_find_query(client, user))){
 			mtx_send_msg(client, room, msg->params[1]);
 		} else {
-			// TODO: check if the user exists, if so, create room and invite them
 			mtx_send_pm_setup(client, user, msg->params[1]);
 			// upon creating room, send NOTICE from user stating room was created
-			// XXX: we need to store the msg somewhere across messages
 		}
 	}
 }
 
 static void irc_event_join(struct client* client, struct irc_msg* msg){
-	mtx_send_join(client, msg->params[0]);
+	char* state;
+	for(char* c = strtok_r((char*)msg->params[0], ",", &state); c; c = strtok_r(NULL, ",", &state)){
+		mtx_send_join(client, msg->params[0]);
+	}
 }
 
 static void irc_event_part(struct client* client, struct irc_msg* msg){
@@ -192,7 +193,7 @@ static struct irc_handler {
 	{ "PRIVMSG" , 2, SF_NEED_REG  , &irc_event_privmsg },
 	{ "JOIN"    , 1, SF_NEED_REG  , &irc_event_join },
 	{ "PART"    , 1, SF_NEED_REG  , &irc_event_part },
-	{ "TOPIC"   , 2, SF_NEED_REG  , &irc_event_topic },
+	{ "TOPIC"   , 1, SF_NEED_REG  , &irc_event_topic },
 	{ "MODE"    , 1, SF_NEED_REG  , &irc_event_mode },
 	{ "NICK"    , 1, 0            , &irc_event_nick },
 	{ "USER"    , 3, SF_NEED_UNREG, &irc_event_user },
@@ -219,7 +220,7 @@ void irc_event(struct client* client, struct irc_msg* msg){
 				client->irc_state &= ~IRC_STATE_IDLE;
 				client->last_cmd_time = time(0);
 
-				printf("Got IRC cmd [%s]\n", msg->cmd);
+				printf("[%02d] IRC cmd [%s]\n", client->irc_sock, msg->cmd);
 
 				h->func(client, msg);
 
