@@ -23,7 +23,7 @@ struct client*  client_new        (int socket, struct sockaddr* addr, socklen_t)
 void            client_del        (struct client*);
 void            client_tick       (void);
 
-void            net_init          (void);
+bool            net_init          (void);
 void            net_update        (int event_mask, struct sock*);
 struct net_msg* net_msg_new       (struct client*, int type);
 void            net_msg_send      (struct net_msg*);
@@ -62,6 +62,8 @@ mtx_id          cvt_i2m_user      (const char* irc_id);
 sb(char)        cvt_m2i_msg_plain (const char* mtx_msg);
 sb(char)        cvt_m2i_msg_rich  (const char* mtx_msg);
 sb(char)        cvt_i2m_msg       (const char* irc_msg, sb(char)* stripped);
+
+bool            presence_update   (struct client*, mtx_id, const char* pres_str);
 
 bool            yajl_generate     (char** out, const char* fmt, ...);
 
@@ -226,6 +228,8 @@ struct client {
 	time_t connect_time;
 	time_t last_cmd_time;
 	time_t last_active;
+
+	time_t last_sync;
 	time_t next_sync;
 
 	int epoll_irc_tag;

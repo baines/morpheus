@@ -90,6 +90,7 @@ void epoll_dispatch(struct epoll_event* e){
 
 int main(int argc, char** argv){
 	srand(time(NULL) ^ (getpid() << 10));
+
 	if(!setlocale(LC_CTYPE, "C.UTF-8")){
 		// XXX: hopefully this is a utf-8 locale. we should check to make sure though.
 		setlocale(LC_CTYPE, "");
@@ -98,11 +99,6 @@ int main(int argc, char** argv){
 	global.mtx_server_base_url = getenv("MTX_URL");
 	if(!global.mtx_server_base_url){
 		global.mtx_server_base_url = "https://localhost:8448";
-	}
-
-	global.mtx_server_name = getenv("MTX_NAME");
-	if(!global.mtx_server_name){
-		global.mtx_server_name = "localhost";
 	}
 
 	global.device_id = getenv("MTX_DEVICE_ID");
@@ -158,9 +154,14 @@ int main(int argc, char** argv){
 	ev.data.ptr = &epoll_tag_timer;
 	epoll_ctl(global.epoll, EPOLL_CTL_ADD, irc_timer, &ev);
 
-	net_init();
-
 	signal(SIGPIPE, SIG_IGN);
+
+	printf("Morpheus started. Listening on port %hd.\n", listen_port);
+
+	if(!net_init()){
+		fputs("Unable to get upstream server details. Please check MTX_URL is set correctly.\n", stderr);
+		return 1;
+	}
 
 	while(1){
 		struct epoll_event buf[8];

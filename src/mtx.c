@@ -55,28 +55,29 @@ void mtx_recv_sync(struct client* client, struct net_msg* msg){
 			yajl_val ago    = YAJL_GET(obj, yajl_t_number, ("content", "last_active_ago"));
 
 			if(!user) continue;
+			mtx_id user_id = id_intern(user->u.string);
 
-			if(client->last_active && status && (client->irc_caps & IRC_CAP_AWAY_NOTIFY)){
+			if(status && (client->irc_caps & IRC_CAP_AWAY_NOTIFY)){
 				const char* away_msg =
 					strcmp(status->u.string, "unavailable") == 0 ? "Idle" :
-					strcmp(status->u.string, "offline")     == 0 ? "Offline" :
-					NULL;
+					strcmp(status->u.string, "online")      == 0 ? NULL :
+					"Offline";
 
-				if(away_msg){
-					IRC_SEND_PF(client, user->u.string, SF_CVT_PREFIX, "AWAY", away_msg);
-				} else {
-					IRC_SEND_PF(client, user->u.string, SF_CVT_PREFIX, "AWAY");
+				if(presence_update(client, user_id, status->u.string)){
+					cprintf("New presence for [%s]: %s\n", user->u.string, away_msg ?: "Online");
+					if(away_msg){
+						IRC_SEND_PF(client, user->u.string, SF_CVT_PREFIX, "AWAY", away_msg);
+					} else {
+						IRC_SEND_PF(client, user->u.string, SF_CVT_PREFIX, "AWAY");
+					}
 				}
+			}
 
-			} else if(YAJL_IS_INTEGER(ago) && id_intern(user->u.string) == client->mtx_id){
+			if(!client->last_active && YAJL_IS_INTEGER(ago) && user_id == client->mtx_id){
 				// XXX: this is likely wrong, ago gets updated when we login? :(
 				//      figure out if our last active time is available somewhere else?
 				client->last_active = time(NULL) - (ago->u.number.i / 1000);
 			}
-
-			// TODO: this is the part where we find out if a user's status changed
-			//       and send an AWAY message if applicable and the away-notify cap is enabled
-			//       Do we need a list of users per client? Or can we just use client->irc_rooms?
 		}
 	}
 
@@ -240,9 +241,9 @@ void mtx_recv_sync(struct client* client, struct net_msg* msg){
 	}
 
 #if 0
-	FILE* f = fopen("debug.txt", "r+");
+	FILE* f = fopen("debug.json", "r+");
 	if(!f){
-		f = fopen("debug.txt", "w");
+		f = fopen("debug.json", "w");
 		fputs(msg->data, f);
 	}
 	fclose(f);
@@ -254,6 +255,8 @@ void mtx_recv_sync(struct client* client, struct net_msg* msg){
 		free(client->mtx_since);
 		client->mtx_since = strdup(since->u.string);
 	}
+
+	client->last_sync = time(NULL);
 
 	yajl_tree_free(root);
 }

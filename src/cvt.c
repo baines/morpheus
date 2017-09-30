@@ -1,6 +1,7 @@
 #include "morpheus.h"
 #include <wchar.h>
 
+// TODO: add `hash suffix for users not part of this homeserver
 char* cvt_m2i_user(mtx_id user_id){
 	assert(user_id);
 	const char* user = id_lookup(user_id);
@@ -19,6 +20,7 @@ char* cvt_m2i_user(mtx_id user_id){
 	return result;
 }
 
+// TODO: lookup if `hash suffix exists, get apropriate mtx_id
 mtx_id cvt_i2m_user(const char* user){
 	assert(user);
 

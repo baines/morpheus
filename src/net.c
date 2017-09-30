@@ -66,7 +66,20 @@ static int curl_cb_timer(CURLM* multi, long timeout_ms, void* uarg){
 	return 0;
 }
 
-void net_init(void){
+static size_t net_curl_cb(char* ptr, size_t sz, size_t nmemb, void* data){
+	char** out = data;
+	const size_t total = sz * nmemb;
+	memcpy(sb_add(*out, total), ptr, total);
+	return total;
+}
+
+static int net_msg_sort(const void* _a, const void* _b){
+	struct net_msg* const* a = _a;
+	struct net_msg* const* b = _b;
+	return (*b)->type - (*a)->type;
+}
+
+bool net_init(void){
 
 	timer.tag = EPOLL_TAG_CURL_TIMER;
 	timer.fd  = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK | TFD_CLOEXEC);
@@ -81,14 +94,44 @@ void net_init(void){
 	curl_multi_setopt(curl, CURLMOPT_SOCKETFUNCTION, &curl_cb_socket);
 	curl_multi_setopt(curl, CURLMOPT_SOCKETDATA    , (void*)((intptr_t)global.epoll));
 	curl_multi_setopt(curl, CURLMOPT_TIMERFUNCTION , &curl_cb_timer);
-	curl_multi_setopt(curl, CURLMOPT_PIPELINING, CURLPIPE_HTTP1 | CURLPIPE_MULTIPLEX);
-	curl_multi_setopt(curl, CURLMOPT_MAX_PIPELINE_LENGTH, 32);
-}
+	//curl_multi_setopt(curl, CURLMOPT_PIPELINING, CURLPIPE_HTTP1 | CURLPIPE_MULTIPLEX);
+	//curl_multi_setopt(curl, CURLMOPT_MAX_PIPELINE_LENGTH, 32);
 
-static int msg_sort(const void* _a, const void* _b){
-	struct net_msg* const* a = _a;
-	struct net_msg* const* b = _b;
-	return (*b)->type - (*a)->type;
+	bool got_server_name = false;
+	sb(char) data = NULL;
+	char* url;
+
+	asprintf(&url, "%s/_matrix/key/v2/server/", global.mtx_server_base_url);
+
+	CURL* c = curl_easy_init();
+	curl_easy_setopt(c, CURLOPT_USERAGENT, "Morpheus");
+	curl_easy_setopt(c, CURLOPT_URL, url);
+	curl_easy_setopt(c, CURLOPT_WRITEFUNCTION, &net_curl_cb);
+	curl_easy_setopt(c, CURLOPT_WRITEDATA, &data);
+	curl_easy_setopt(c, CURLOPT_SSL_VERIFYHOST, 0L);
+	curl_easy_setopt(c, CURLOPT_SSL_VERIFYPEER, 0L);
+
+	free(url);
+
+	if(curl_easy_perform(c) == CURLE_OK){
+		sb_push(data, 0);
+
+		yajl_val root = yajl_tree_parse(data, NULL, 0);
+		yajl_val serv = YAJL_GET(root, yajl_t_string, ("server_name"));
+
+		if(serv){
+			printf("Upstream server_name: [%s]\n", serv->u.string);
+			global.mtx_server_name = strdup(serv->u.string);
+			got_server_name = true;
+		}
+
+		yajl_tree_free(root);
+	}
+
+	curl_easy_cleanup(c);
+	sb_free(data);
+
+	return got_server_name;
 }
 
 void net_update(int emask, struct sock* s){
@@ -134,7 +177,7 @@ void net_update(int emask, struct sock* s){
 	if(!done_list) return;
 
 	// sort the messages so that SYNCs come last
-	qsort(done_list, sb_count(done_list), sizeof(struct net_msg*), &msg_sort);
+	qsort(done_list, sb_count(done_list), sizeof(struct net_msg*), &net_msg_sort);
 
 	sb_each(m, done_list){
 		struct net_msg* msg = *m;
@@ -176,13 +219,6 @@ void net_update(int emask, struct sock* s){
 	}
 
 	sb_free(done_list);
-}
-
-static size_t net_curl_cb(char* ptr, size_t sz, size_t nmemb, void* data){
-	char** out = data;
-	const size_t total = sz * nmemb;
-	memcpy(sb_add(*out, total), ptr, total);
-	return total;
 }
 
 struct net_msg* net_msg_new(struct client* client, int type){

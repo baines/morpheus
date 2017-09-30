@@ -56,9 +56,9 @@ lurking within. Use at your own risk!
 
 # Usage
 
-Edit start.sh, setting `MTX_SERVER`, `MTX_NAME` and maybe `MTX_LISTEN_PORT`.
-`MTX_NAME` should probably be just the domain of `MTX_SERVER`.
-`MTX_LISTEN_PORT` is where the "IRCd" side of morpheus will listen.
+Edit start.sh, setting `MTX_SERVER` and maybe `MTX_LISTEN_PORT`.
+`MTX_SERVER` should be a url like `https://localhost:8448`
+`MTX_LISTEN_PORT` is the port on which the "IRCd" side of morpheus will listen.
 
 Next, add a server to your IRC client. Assuming you're running morpheus on your local
 computer, you'd add a server of 127.0.0.1/PORT where PORT is what you set `MTX_LISTEN_PORT`
