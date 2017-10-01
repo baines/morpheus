@@ -155,6 +155,8 @@ void mtx_recv_sync(struct client* client, struct net_msg* msg){
 
 				mtx_id sender_id = id_intern(sender->u.string);
 				char* hostmask = cvt_m2i_user(sender_id);
+
+				// XXX: use proper room name lookup
 				const char* r = strndupa(state.room->canon, strchrnul(state.room->canon, ':') - state.room->canon);
 
 				IRC_SEND_NUM(client, "332", r, topic->u.string);

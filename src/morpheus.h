@@ -31,6 +31,8 @@ void            net_msg_free      (struct net_msg*);
 
 mtx_id          id_intern         (const char* id);
 const char*     id_lookup         (mtx_id);
+int             id_server_hash    (mtx_id);
+const char*     id_server_unhash  (int hash);
 
 void            mtx_send_sync     (struct client*);
 void            mtx_send_login    (struct client*);
@@ -178,13 +180,12 @@ struct member {
 
 struct room {
 	mtx_id id;
-	char* canon;
+	char* canon; // XXX: make this a mtx_id
+	sb(mtx_id) aliases;
 	sb(struct member) members;
 	bool invite_only;
 	time_t created;
-	// TODO:
-	// power level for OP, HOP etc
-	// other aliases?
+	// TODO: required power level for OP, HOP etc?
 };
 
 struct sync_state {

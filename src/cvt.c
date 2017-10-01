@@ -1,34 +1,42 @@
 #include "morpheus.h"
 #include <wchar.h>
 
-// TODO: add `hash suffix for users not part of this homeserver
 char* cvt_m2i_user(mtx_id user_id){
 	assert(user_id);
+
 	const char* user = id_lookup(user_id);
 	assert(user[0] == '@');
-	++user;
-
-	char* colon = strchr(user, ':');
+	const char* colon = strchr(++user, ':');
 	assert(colon);
 
 	int n = colon - user;
 
 	char* result;
-	asprintf(&result, "%.*s!%.*s@%s", n, user, n, user, colon+1);
-	assert(result);
+	if(strcmp(colon+1, global.mtx_server_name) == 0){
+		asprintf(&result, "%.*s!%.*s@%s", n, user, n, user, colon+1);
+	} else {
+		int hash = id_server_hash(user_id);
+		asprintf(&result, "%.*s`%4hx!%.*s@%s", n, user, hash, n, user, colon+1);
+	}
 
+	assert(result);
 	return result;
 }
 
-// TODO: lookup if `hash suffix exists, get apropriate mtx_id
 mtx_id cvt_i2m_user(const char* user){
 	assert(user);
 
-	// FIXME: why am i doing it this way... the proper server name should be in user
-	int len = strchrnul(user, '!') - user;
+	const char* server = global.mtx_server_name;
+	const char* suffix = strchr(user, '`');
+	if(suffix){
+		int hash = atoi(suffix+1);
+		server = id_server_unhash(hash);
+	}
 
-	char buf[256];
-	snprintf(buf, sizeof(buf), "@%.*s:%s", len, user, global.mtx_server_name);
+	int len = strcspn(user, "!`");
+
+	char buf[1024];
+	snprintf(buf, sizeof(buf), "@%.*s:%s", len, user, server);
 
 	return id_intern(buf);
 }

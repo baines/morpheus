@@ -1,38 +1,41 @@
 * handle message splitting
 * call /logout on disconnect
-* away-notify CAP for presence updates
 * room lookup for /list
 	* /publicRooms endpoint
 	* query every ~10m and cache?
 * power levels
+	* check the numbers in the json instead of hardcoding >=50 = hop, >=100 = op
 * presence
-	* probably need list of presence per client to compare against for changes
+	* assume Offline for users not mentioned in presence json?
 	* RPL_AWAY when idle/offline status?
 * NAMES '=' character should depend on invite-only status (or guest_access ??)
+* MODE
 * WHO / WHOIS
-* TLS for IRC socket
 * join to non-existent room should create it
 * part should call /forget?
 * if, after a leave, we are left in an empty room with no power: leave + forget it
-* think how to handle clashing nicknames
-	* use ` as nick suffix to make them always unique
-	* homeserver nicks always have no suffix
 * fix TOPIC with no args
-* znc style history logging
 * use syslog? or custom log scheme?
 * daemon()
 * pagination
 * rate limiting
-* olm stuff?
+	* handle matrix 429 response somehow
 * set display name based on nick / real name?
 * split messages into multiple when matrix contains \n
 * keep device_id stable for same device+user pair
 	* show the device_id to the user in welcome message
 * figure something sensible out for channels without a canonical alias
-	+Linux
-	+Site_Activity
-	+Linux|1932 -> 1932 represents other home server?
-	sanitize + convert display names of rooms/users to irc format?
-* make sure a sync is running on tick?
-* handle curl errors gracefully
+	* use plain aliases if their server is our homeserver?
+		* use plain alias with |suffix for other homeservers?
+	* sanitize + convert display names of rooms/users to irc format?
+* convert nicks in incoming / outgoing messages
+	* in  -> to corresponding `suffixed name
+	* out -> to display name / username
+		* check for "[^ ]+`[0-9a-f]{4}[ ]"
+* TLS for IRC socket
+	* use mbedTLS probably
+* handle curl errors more gracefully
+	* send NOTICE or something if its important?
+* znc style history logging
+* olm stuff?
 
