@@ -211,7 +211,7 @@ void net_update(int emask, struct sock* s){
 		for(struct net_msg** p = &client->msgs; *p; /**/){
 			if(*p == msg){
 				*p = msg->next;
-				free(msg);
+				net_msg_free(msg);
 			} else {
 				p = &(*p)->next;
 			}
