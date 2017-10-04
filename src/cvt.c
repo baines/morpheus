@@ -75,7 +75,7 @@ static uint8_t html_tag_to_irc(const char* tag, size_t len){
 		}
 	}
 
-	if(len == 7 && strncmp(tag, "</font>", 7) == 0){
+	if(len == 6 && strncmp(tag, "</font", 6) == 0){
 		return 0x03;
 	}
 
@@ -143,7 +143,7 @@ sb(char) cvt_m2i_msg_rich(const char* msg){
 			if(sb_count(out) != orig_count) msg = end;
 			if(*msg) ++msg;
 
-		} else if(*(uint8_t*)msg < ' '){ // strip control chars
+		} else if(*(uint8_t*)msg < ' ' && *(uint8_t*)msg > 1){ // strip control chars
 			sb_push(out, ' ');
 			++msg;
 		} else {
@@ -269,7 +269,7 @@ sb(char) cvt_i2m_msg(const char* msg, sb(char)* stripped){
 
 						memcpy(sb_add(out, n), buf, n);
 					} else {
-						static const char* tag = "</font>";
+						static const char tag[] = "</font>";
 						memcpy(sb_add(out, sizeof(tag)-1), tag, sizeof(tag)-1);
 					}
 				}
