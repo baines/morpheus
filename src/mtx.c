@@ -313,6 +313,7 @@ void mtx_recv(struct client* client, struct net_msg* msg){
 				mtx_send_sync(client);
 			} else {
 				cprintf("SYNC FAIL: [%ld] [%s]\n", msg->curl_status, msg->data);
+				IRC_SEND(client, "NOTICE", client->irc_nick, "Matrix sync failed D:");
 				client->next_sync = now + 10;
 			}
 		} break;
@@ -325,6 +326,7 @@ void mtx_recv(struct client* client, struct net_msg* msg){
 				}
 			} else {
 				cprintf("MSG FAIL: [%ld] [%s]\n", msg->curl_status, msg->data);
+				IRC_SEND(client, "NOTICE", client->irc_nick, "Failed to send message.");
 			}
 		} break;
 
@@ -345,6 +347,7 @@ void mtx_recv(struct client* client, struct net_msg* msg){
 						IRC_SEND_NUM(client, "473", msg->user_data, "Cannot join channel (+i)");
 					} else {
 						cprintf("FIXME: MSG_JOIN: Unknown error: [%s]\n", msg->data);
+						IRC_SEND(client, "NOTICE", client->irc_nick, "Error joining channel");
 					}
 				}
 			}
@@ -404,11 +407,15 @@ void mtx_recv(struct client* client, struct net_msg* msg){
 			} else {
 				// TODO: proper error message
 				snprintf(buf, sizeof(buf), "RIP IN PIECES: [%ld]", msg->curl_status); 
-				IRC_SEND_PF(client, id_lookup(data->friend), SF_CVT_PREFIX, "NOTICE", "bob", buf);
+				IRC_SEND(client, "NOTICE", client->irc_nick, "Error sending PM");
 				cprintf("PM_CREATE FAIL: [%ld] [%s]\n", msg->curl_status, msg->data);
 			}
 
 			free(data);
+		} break;
+
+		default: {
+			cprintf("Unhandled message: [%d] [%ld] [%s]\n", msg->type, msg->curl_status, msg->data);
 		} break;
 	}
 

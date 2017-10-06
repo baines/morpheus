@@ -240,6 +240,7 @@ struct net_msg* net_msg_new(struct client* client, int type){
 		// XXX: breaks other GETs if they're pipelined onto the sync request
 		//      so only enable it for sync itself (even this causes issues? investigate)
 		// curl_easy_setopt(msg->curl, CURLOPT_PIPEWAIT, 1L);
+		curl_easy_setopt(msg->curl, CURLOPT_TIMEOUT, 100);
 	} else {
 		// all the non-sync messages should complete timely, if not something is busted.
 		curl_easy_setopt(msg->curl, CURLOPT_TIMEOUT, 10);

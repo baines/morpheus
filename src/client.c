@@ -101,6 +101,9 @@ void client_tick(){
 
 				if(!(*c)->next_sync && pending_msgs == 0){
 					printf("WARNING: client %d has no sync ongoing?\n", (*c)->irc_sock);
+					IRC_SEND(*c, "NOTICE", (*c)->irc_nick, "[debug] sync timed out? that's just not cricket.");
+					mtx_send_sync(*c);
+					(*c)->next_sync = 0;
 				} else if((*c)->next_sync && now > (*c)->next_sync){
 					mtx_send_sync(*c);
 					(*c)->next_sync = 0;

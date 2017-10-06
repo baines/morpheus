@@ -110,7 +110,7 @@ int irc_send(struct client* client, struct irc_msg* _msg){
 		assert(msg.params[0]);
 
 		// XXX: need a cvt_room function to properly handle the hash stuff
-		const char* colon = strchr(msg.params[0], ':');
+		const char* colon = strchrnul(msg.params[0], ':');
 		msg.params[0] = strndupa(msg.params[0], colon - msg.params[0]);
 	}
 
