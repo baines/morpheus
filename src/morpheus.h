@@ -169,6 +169,7 @@ struct net_msg {
 	bool  done;
 	struct curl_slist* headers;
 	struct net_msg* next;
+	char errbuf[CURL_ERROR_SIZE];
 };
 
 struct member {

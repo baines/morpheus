@@ -236,6 +236,8 @@ struct net_msg* net_msg_new(struct client* client, int type){
 	curl_easy_setopt(msg->curl, CURLOPT_SSL_VERIFYPEER, 0L);
 	curl_easy_setopt(msg->curl, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_2TLS);
 
+	curl_easy_setopt(msg->curl, CURLOPT_ERRORBUFFER, msg->errbuf);
+
 	if(type == MTX_MSG_SYNC){
 		// XXX: breaks other GETs if they're pipelined onto the sync request
 		//      so only enable it for sync itself (even this causes issues? investigate)

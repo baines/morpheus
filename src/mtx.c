@@ -14,6 +14,7 @@
 })
 
 #define cprintf(fmt, ...) printf("[%02d] " fmt, client->irc_sock, ##__VA_ARGS__)
+#define net_msg_perror(msg, fmt, ...) cprintf(fmt " FAIL: [%ld] [%s] [%s]\n", ##__VA_ARGS__, msg->curl_status, msg->errbuf, msg->data)
 
 struct pm_data {
 	mtx_id friend;
@@ -301,7 +302,7 @@ void mtx_recv(struct client* client, struct net_msg* msg){
 			if(msg->curl_status == 403){
 				IRC_SEND_NUM(client, "464", "Password incorrect");
 			} else if(msg->curl_status != 200){
-				cprintf("LOGIN FAIL: [%ld] [%s]\n", msg->curl_status, msg->data);
+				net_msg_perror(msg, "LOGIN");
 				IRC_SEND(client, "NOTICE", "*", "Internal Server Error");
 			}
 		} break;
@@ -312,7 +313,7 @@ void mtx_recv(struct client* client, struct net_msg* msg){
 				mtx_recv_sync(client, msg);
 				mtx_send_sync(client);
 			} else {
-				cprintf("SYNC FAIL: [%ld] [%s]\n", msg->curl_status, msg->data);
+				net_msg_perror(msg, "SYNC");
 				IRC_SEND(client, "NOTICE", client->irc_nick, "Matrix sync failed D:");
 				client->next_sync = now + 10;
 			}
@@ -325,7 +326,7 @@ void mtx_recv(struct client* client, struct net_msg* msg){
 					sb_push(client->mtx_sent_ids, strdup(id->u.string));
 				}
 			} else {
-				cprintf("MSG FAIL: [%ld] [%s]\n", msg->curl_status, msg->data);
+				net_msg_perror(msg, "MSG");
 				IRC_SEND(client, "NOTICE", client->irc_nick, "Failed to send message.");
 			}
 		} break;
@@ -346,7 +347,7 @@ void mtx_recv(struct client* client, struct net_msg* msg){
 					if(strcmp(err->u.string, "M_FORBIDDEN") == 0){
 						IRC_SEND_NUM(client, "473", msg->user_data, "Cannot join channel (+i)");
 					} else {
-						cprintf("FIXME: MSG_JOIN: Unknown error: [%s]\n", msg->data);
+						net_msg_perror(msg, "JOIN");
 						IRC_SEND(client, "NOTICE", client->irc_nick, "Error joining channel");
 					}
 				}
@@ -360,14 +361,14 @@ void mtx_recv(struct client* client, struct net_msg* msg){
 			} else {
 				char* url = NULL;
 				curl_easy_getinfo(msg->curl, CURLINFO_EFFECTIVE_URL, &url);
-				cprintf("can't leave? O.o %ld [%s]\nJSON = [%s]\n", msg->curl_status, url, msg->data);
+				net_msg_perror(msg, "LEAVE");
 			}
 		} break;
 
 		case MTX_MSG_TOPIC: {
 			if(msg->curl_status != 200){
 				// TODO: send error to IRC
-				cprintf("TOPIC FAIL: [%ld] [%s]\n", msg->curl_status, msg->data);
+				net_msg_perror(msg, "TOPIC");
 			}
 		} break;
 
@@ -384,7 +385,7 @@ void mtx_recv(struct client* client, struct net_msg* msg){
 				IRC_SEND_NUM(client, "401", who, "No such nick/channel.");
 				free(who);
 
-				cprintf("PM_LOOKUP FAIL: [%ld] [%s]\n", msg->curl_status, msg->data);
+				net_msg_perror(msg, "PM_LOOKUP");
 			}
 		} break;
 
@@ -408,7 +409,7 @@ void mtx_recv(struct client* client, struct net_msg* msg){
 				// TODO: proper error message
 				snprintf(buf, sizeof(buf), "RIP IN PIECES: [%ld]", msg->curl_status); 
 				IRC_SEND(client, "NOTICE", client->irc_nick, "Error sending PM");
-				cprintf("PM_CREATE FAIL: [%ld] [%s]\n", msg->curl_status, msg->data);
+				net_msg_perror(msg, "PM_CREATE");
 			}
 
 			free(data);

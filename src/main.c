@@ -90,6 +90,7 @@ void epoll_dispatch(struct epoll_event* e){
 
 int main(int argc, char** argv){
 	srand(time(NULL) ^ (getpid() << 10));
+	setlinebuf(stdout);
 
 	if(!setlocale(LC_CTYPE, "C.UTF-8")){
 		// XXX: hopefully this is a utf-8 locale. we should check to make sure though.
