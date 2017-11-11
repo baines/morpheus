@@ -13,16 +13,17 @@ static void irc_event_pong(struct client* client, struct irc_msg* msg){
 static void irc_event_privmsg(struct client* client, struct irc_msg* msg){
 	struct room* room;
 
-	if(msg->params[0][0] == '#'){ // PRIVMSG to channel
-		if((room = room_get_irc(msg->params[0]))){
+	if(msg->params[0][0] == '#' || msg->params[0][0] == '!'){ // PRIVMSG to channel
+
+		if((room = room_lookup_irc(msg->params[0]))){
 			mtx_send_msg(client, room, msg->params[1]);
 		} else {
 			// TODO: it might exist, but we're not in it.. should we check?
 			IRC_SEND_NUM(client, "401", msg->params[0], "No such nick/channel.");
 		}
-	} else if(msg->params[0][0] == '&'){ // TODO: group rooms
 
 	} else { // PM to user
+
 		mtx_id user = cvt_i2m_user(msg->params[0]);
 
 		if((room = room_find_query(client, user))){
@@ -31,6 +32,7 @@ static void irc_event_privmsg(struct client* client, struct irc_msg* msg){
 			mtx_send_pm_setup(client, user, msg->params[1]);
 			// upon creating room, send NOTICE from user stating room was created
 		}
+
 	}
 }
 
@@ -42,7 +44,7 @@ static void irc_event_join(struct client* client, struct irc_msg* msg){
 }
 
 static void irc_event_part(struct client* client, struct irc_msg* msg){
-	struct room* room = room_get_irc(msg->params[0]);
+	struct room* room = room_lookup_irc(msg->params[0]);
 	if(room){
 		mtx_send_leave(client, room);
 	} else {
@@ -51,7 +53,7 @@ static void irc_event_part(struct client* client, struct irc_msg* msg){
 }
 
 static void irc_event_topic(struct client* client, struct irc_msg* msg){
-	struct room* room = room_get_irc(msg->params[0]);
+	struct room* room = room_lookup_irc(msg->params[0]);
 	
 	// TODO: handle showing / removal of topic?
 	if(room){
@@ -62,7 +64,7 @@ static void irc_event_topic(struct client* client, struct irc_msg* msg){
 }
 
 static void irc_event_mode(struct client* client, struct irc_msg* msg){
-	struct room* room = room_get_irc(msg->params[0]);
+	struct room* room = room_lookup_irc(msg->params[0]);
 
 	if(room && msg->pcount == 1){
 		// TODO: use the other func to check?

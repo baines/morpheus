@@ -125,8 +125,12 @@ void mtx_recv_sync(struct client* client, struct net_msg* msg){
 			}
 		}
 
-		if(!known_to_irc && state.room->canon){
-			IRC_SEND_PF(client, id_lookup(client->mtx_id), SF_CVT_PREFIX | SF_CVT_ROOM_P0, "JOIN", state.room->canon);
+		// FIXME: should we / can we do this after the timeline events?
+		char* irc_room = NULL;
+		int   irc_room_type = room_get_irc_info(state.room, client, &irc_room);
+
+		if(!known_to_irc && irc_room_type > ROOM_IRC_QUERY){
+			IRC_SEND_PF(client, id_lookup(client->mtx_id), SF_CVT_PREFIX, "JOIN", irc_room);
 			irc_send_names(client, state.room);
 		}
 
@@ -145,7 +149,7 @@ void mtx_recv_sync(struct client* client, struct net_msg* msg){
 			}
 		}
 
-		if(state.new_topic && state.room->canon){
+		if(state.new_topic && irc_room){
 			yajl_val topic  = YAJL_GET(state.new_topic, yajl_t_string, ("content", "topic"));
 			yajl_val sender = YAJL_GET(state.new_topic, yajl_t_string, ("sender"));
 			yajl_val epoch  = YAJL_GET(state.new_topic, yajl_t_number, ("origin_server_ts"));
@@ -157,15 +161,14 @@ void mtx_recv_sync(struct client* client, struct net_msg* msg){
 				mtx_id sender_id = id_intern(sender->u.string);
 				char* hostmask = cvt_m2i_user(sender_id);
 
-				// XXX: use proper room name lookup
-				const char* r = strndupa(state.room->canon, strchrnul(state.room->canon, ':') - state.room->canon);
-
-				IRC_SEND_NUM(client, "332", r, topic->u.string);
-				IRC_SEND_NUM(client, "333", r, hostmask, epoch_str);
+				IRC_SEND_NUM(client, "332", irc_room, topic->u.string);
+				IRC_SEND_NUM(client, "333", irc_room, hostmask, epoch_str);
 
 				free(hostmask);
 			}
 		}
+
+		free(irc_room);
 	}
 
 	for(size_t i = 0; leaves && i < leaves->u.object.len; ++i){
@@ -179,11 +182,11 @@ void mtx_recv_sync(struct client* client, struct net_msg* msg){
 			.client = client,
 		};
 
-		// XXX FIXME: only send join/part for chan/grp
-		// do the proper check with that func i added
-		if(state.room->canon){
-			IRC_SEND_PF(client, id_lookup(client->mtx_id), SF_CVT_PREFIX | SF_CVT_ROOM_P0, "PART", state.room->canon);
+		char* irc_room = NULL;
+		if(room_get_irc_info(state.room, client, &irc_room) > ROOM_IRC_QUERY){
+			IRC_SEND_PF(client, id_lookup(client->mtx_id), SF_CVT_PREFIX, "PART", irc_room);
 		}
+		free(irc_room);
 		room_member_del(state.room, client->mtx_id);
 
 		sb_each(r, client->irc_rooms){
@@ -292,7 +295,7 @@ void mtx_recv(struct client* client, struct net_msg* msg){
 					IRC_SEND_NUM(client, "002", "Your device_id is", dev ? dev->u.string : "unknown");
 					IRC_SEND_NUM(client, "003", "This server was created at some point");
 					IRC_SEND_NUM(client, "004", "morpheus 1.0 ¯\\_(ツ)_/¯");
-					IRC_SEND_NUM(client, "005", "PREFIX=(ohv)@%+ CHANTYPES=#&+", "are supported by this server");
+					IRC_SEND_NUM(client, "005", "PREFIX=(ohv)@%+ CHANTYPES=#!+", "are supported by this server");
 
 				} else {
 					msg->curl_status = 0;

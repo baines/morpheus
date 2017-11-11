@@ -50,13 +50,13 @@ void            irc_recv          (struct client*, const char* buf, size_t n);
 void            irc_event         (struct client*, struct irc_msg*);
 
 struct room*    room_new          (mtx_id id);
-struct room*    room_get_mtx      (mtx_id id);
-struct room*    room_get_irc      (const char* chan);
+struct room*    room_lookup_mtx   (mtx_id id);
+struct room*    room_lookup_irc   (const char* chan);
 void            room_free         (struct room*);
 struct member*  room_member_get   (struct room*, mtx_id member_id);
 struct member*  room_member_add   (struct room*, mtx_id member_id, int state);
 void            room_member_del   (struct room*, mtx_id member_id);
-char*           room_get_irc_name (struct room*, struct client*, int* type);
+int             room_get_irc_info (struct room*, struct client*, char** name);
 struct room*    room_find_query   (struct client*, mtx_id partner);
 
 char*           cvt_m2i_user      (mtx_id id);
@@ -136,15 +136,13 @@ enum {
 // For irc_msg_send, to know operations to apply to the irc_msg struct before sending.
 enum {
 	SF_CVT_PREFIX  = (1 << 0),
-	SF_CVT_ROOM_P0 = (1 << 1),
-	SF_CVT_ROOM_P1 = (1 << 2),
 };
 
 // Returned by room_get_irc_name's type argument
 enum {
 	ROOM_IRC_INVALID = -1,
-	ROOM_IRC_CHANNEL,
 	ROOM_IRC_QUERY,
+	ROOM_IRC_CHANNEL,
 	ROOM_IRC_GROUP,
 };
 
@@ -181,11 +179,16 @@ struct member {
 
 struct room {
 	mtx_id id;
-	char* canon; // XXX: make this a mtx_id
+	mtx_id chosen_alias;
 	sb(mtx_id) aliases;
+
+	char*  canon;        // XXX: make this a mtx_id
+	char*  display_name; // NOTE: only used to pick the most appropriate alias currently.
+
 	sb(struct member) members;
 	bool invite_only;
 	time_t created;
+
 	// TODO: required power level for OP, HOP etc?
 };
 
@@ -254,6 +257,9 @@ extern struct global_state {
 })
 
 #define countof(x) (sizeof(x)/sizeof(*x))
+
+#define MIN(_a,_b) ({ typeof(_a) a = (_a); typeof(_b) b = (_b); a<b?a:b; })
+#define MAX(_a,_b) ({ typeof(_a) a = (_a); typeof(_b) b = (_b); a<b?b:a; })
 
 #define YAJL_PATH_EXPAND(...) { __VA_ARGS__, NULL }
 #define YAJL_GET(root, type, path) ({               \

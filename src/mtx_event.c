@@ -31,8 +31,8 @@ static void mtx_event_message(struct sync_state* state, yajl_val obj){
 		}
 	}
 
-	int room_type = -1;
-	char* room_name = room_get_irc_name(state->room, state->client, &room_type);
+	char* room_name = NULL;
+	room_get_irc_info(state->room, state->client, &room_name);
 
 	if(!our_msg && type && body && sender){
 
@@ -122,15 +122,17 @@ static void mtx_event_topic(struct sync_state* state, yajl_val obj){
 		yajl_val topic  = YAJL_GET(obj, yajl_t_string, ("content", "topic"));
 		yajl_val sender = YAJL_GET(obj, yajl_t_string, ("sender"));
 
-		if(topic && sender && state->room->canon){
+		char* irc_room = NULL;
+		if(topic && sender && room_get_irc_info(state->room, state->client, &irc_room) != ROOM_IRC_INVALID){
 			IRC_SEND_PF(
 				state->client,
 				sender->u.string,
-				SF_CVT_ROOM_P0 | SF_CVT_PREFIX,
+				SF_CVT_PREFIX,
 				"TOPIC",
-				state->room->canon,
+				irc_room,
 				topic->u.string
 			);
+			free(irc_room);
 		}
 	}
 }
@@ -147,9 +149,13 @@ static void mtx_event_member(struct sync_state* state, yajl_val obj){
 
 		if(strcmp(membership->u.string, "join") == 0){
 			struct member* m = room_member_add(state->room, member_id, MEMBER_STATE_JOINED);
-			if((state->flags & SYNC_TIMELINE) && state->room->canon && m->id != state->client->mtx_id){
-				IRC_SEND_PF(state->client, member->u.string, SF_CVT_PREFIX | SF_CVT_ROOM_P0, "JOIN", state->room->canon);
+			char* irc_room = NULL;
+
+			if((state->flags & SYNC_TIMELINE) && m->id != state->client->mtx_id && room_get_irc_info(state->room, state->client, &irc_room) > ROOM_IRC_QUERY){
+				IRC_SEND_PF(state->client, member->u.string, SF_CVT_PREFIX, "JOIN", irc_room);
 			}
+			free(irc_room);
+
 		} else if(strcmp(membership->u.string, "leave") == 0){
 			room_member_del(state->room, member_id);
 		} else if(strcmp(membership->u.string, "invite") == 0){
@@ -187,7 +193,20 @@ static void mtx_event_create(struct sync_state* state, yajl_val obj){
 }
 
 static void mtx_event_aliases(struct sync_state* state, yajl_val obj){
-	// TODO: ???
+	yajl_val key = YAJL_GET(obj, yajl_t_string, ("state_key"));
+	yajl_val arr = YAJL_GET(obj, yajl_t_array,  ("content", "aliases"));
+
+	if(!key || strcmp(key->u.string, global.mtx_server_name) != 0){
+		return;
+	}
+
+	for(size_t i = 0; i < arr->u.array.len; ++i){
+		yajl_val v = arr->u.array.values[i];
+		if(!YAJL_IS_STRING(v)) continue;
+
+		sb_push(state->room->aliases, id_intern(v->u.string));
+	}
+
 }
 
 static void mtx_event_canon_alias(struct sync_state* state, yajl_val obj){
@@ -223,6 +242,14 @@ static void mtx_event_power_levels(struct sync_state* state, yajl_val obj){
 	}
 }
 
+static void mtx_event_name(struct sync_state* state, yajl_val obj){
+	yajl_val name = YAJL_GET(obj, yajl_t_string, ("content", "name"));
+	if(name){
+		free(state->room->display_name);
+		state->room->display_name = strdup(name->u.string);
+	}
+}
+
 typedef void event_fn(struct sync_state* state, yajl_val);
 
 static struct mtx_handler {
@@ -239,6 +266,7 @@ static struct mtx_handler {
 	{ "m.room.canonical_alias"   , &mtx_event_canon_alias },
 	{ "m.room.history_visibility", &mtx_event_history_vis },
 	{ "m.room.power_levels"      , &mtx_event_power_levels },
+	{ "m.room.name"              , &mtx_event_name },
 };
 
 void mtx_event(const char* event, struct sync_state* state, yajl_val obj){

@@ -105,15 +105,6 @@ int irc_send(struct client* client, struct irc_msg* _msg){
 	int result = 0;
 	struct irc_msg msg = *_msg;
 
-	if(msg.flags & SF_CVT_ROOM_P0){
-		assert(msg.pcount >= 1);
-		assert(msg.params[0]);
-
-		// XXX: need a cvt_room function to properly handle the hash stuff
-		const char* colon = strchrnul(msg.params[0], ':');
-		msg.params[0] = strndupa(msg.params[0], colon - msg.params[0]);
-	}
-
 	// TODO: this stuff is messy... think of a better way
 	char* cvt_prefix = NULL;
 	if(msg.flags & SF_CVT_PREFIX){
@@ -185,7 +176,8 @@ void irc_send_names(struct client* client, struct room* room){
 
 	// We also need to either do msg splitting here, or let irc_send take care of that
 
-	char* room_name = room_get_irc_name(room, client, NULL);
+	char* room_name = NULL;
+	room_get_irc_info(room, client, &room_name);
 
 	sb_each(m, room->members){
 		char prefix = 0;
