@@ -16,7 +16,7 @@ char* cvt_m2i_user(mtx_id user_id){
 		asprintf(&result, "%.*s!%.*s@%s", n, user, n, user, colon+1);
 	} else {
 		int hash = id_server_hash(user_id);
-		asprintf(&result, "%.*s`%4hx!%.*s@%s", n, user, hash, n, user, colon+1);
+		asprintf(&result, "%.*s`%04hx!%.*s@%s", n, user, hash, n, user, colon+1);
 	}
 
 	assert(result);
