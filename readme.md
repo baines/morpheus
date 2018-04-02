@@ -44,7 +44,11 @@ There are two main reasons:
 
 * Kicking / banning
 * Giving unique nicks to users from other homeservers
+	* Sort of done, via 4-digit suffix, but not ideal.
 * TLS support on the IRC socket via mbedTLS
+	* It may be worth leaving this to something external like stunnel.
+* Considerations for large servers like matrix.org, i.e. not flooding the nick list with inactive names.
+	* Although presence seems broken on matrix.org...
 * Other stuff, see TODO.txt
 
 # Other caveats?
@@ -56,12 +60,20 @@ lurking within. Use at your own risk!
 
 # Usage
 
-Edit start.sh, setting `MTX_SERVER` and maybe `MTX_LISTEN_PORT`.
-`MTX_SERVER` should be a url like `https://localhost:8448`
-`MTX_LISTEN_PORT` is the port on which the "IRCd" side of morpheus will listen.
+Edit start.sh, setting `MTX_URL` and maybe `MTX_LISTEN_PORT`.
+`MTX_URL` should be a url like `https://localhost:8448` or `https://matrix.org`,
+ pointing to the remote matrix server.
+`MTX_LISTEN_PORT` is the port on which the local "IRCd" side of morpheus will listen.
 
 Next, add a server to your IRC client. Assuming you're running morpheus on your local
 computer, you'd add a server of 127.0.0.1/PORT where PORT is what you set `MTX_LISTEN_PORT`
 to, or 1999 by default. Set the username and server password to your matrix userid and password.
 
 If all goes well, you should be connected to the matrix server when you connect to morpheus.
+
+# Misc
+
+You can change the device_id and device_name that will be sent to the matrix
+server with the `MTX_DEVICE_ID` and `MTX_DEVICE_NAME` environment variables.
+This is not especially useful currently, however.
+

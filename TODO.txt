@@ -22,12 +22,8 @@
 	* handle matrix 429 response somehow
 * set display name based on nick / real name?
 * split messages into multiple when matrix contains \n
+	* IRCv3 batch thing?
 * keep device_id stable for same device+user pair
-	* show the device_id to the user in welcome message
-* figure something sensible out for channels without a canonical alias
-	* use plain aliases if their server is our homeserver?
-		* use plain alias with |suffix for other homeservers?
-	* sanitize + convert display names of rooms/users to irc format?
 * convert nicks in incoming / outgoing messages
 	* in  -> to corresponding `suffixed name
 	* out -> to display name / username
